@@ -1,0 +1,31 @@
+{
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "temperature": 0.0,
+    "max_tokens": 1024
+  },
+  "scorer": {
+    "numeric_rel_tol": 0.01,
+    "semantic_conf_threshold": 0.7,
+    "consistency_penalty": 0.2,
+    "contradiction_penalty": 0.5,
+    "hedging_penalty": 0.1
+  },
+  "calibration": {
+    "cv_folds": 5,
+    "cv_repeats": 5,
+    "random_seed": 42
+  },
+  "servers": {
+    "mcp": "http://localhost:8001",
+    "green_agent": "http://localhost:8002",
+    "purple_agent": "http://localhost:8003"
+  },
+  "purple_agent_mode": "gold",
+  "judge_versions": {
+    "semantic": "semantic_v1.0.0",
+    "numeric": "numeric_v1.1.0",
+    "contradiction": "contradiction_v1.1.0"
+  }
+}
