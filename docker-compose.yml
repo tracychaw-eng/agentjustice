@@ -1,0 +1,17 @@
+services:
+  evaluator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    working_dir: /app
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+    volumes:
+      # Mount output directories to host for persistence
+      - ./artifacts:/app/artifacts
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      # Mount data directory to ensure datasets are available
+      - ./data:/app/data
+    # Default command: run full evaluation (both tracks)
+    command: ["python", "scripts/run_evaluation.py"]

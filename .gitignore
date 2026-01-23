@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Generated outputs
+artifacts/
+logs/
+reports/*.md
+
+# Secrets - NEVER commit these
+.env
+*.key
+credentials.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Claude config
+.claude/
+
+# Large files
+*.pdf
+*.png
+*.jpg
