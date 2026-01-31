@@ -156,9 +156,11 @@ Difficulty analysis reports include 1-3 concrete examples of highest judge disag
 
 ## Architecture
 
+### High-Level Overview
+
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         EVALUATION PIPELINE                                 │
+│                         EVALUATION PIPELINE                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                               ┌─────────────────┐
@@ -176,10 +178,10 @@ Difficulty analysis reports include 1-3 concrete examples of highest judge disag
                                       │ orchestrates
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                           GREEN AGENT (Orchestrator)                        │
-│                                                                             │
+│                           GREEN AGENT (Orchestrator)                         │
+│                                                                              │
 │  ┌─────────────┐    ┌─────────────┐    ┌──────────────┐    ┌─────────────┐  │
-│  │   Dataset   │───▶│ MCP Client │───▶│Hybrid Scorer │───▶│Audit Logger│  │
+│  │   Dataset   │───▶│  MCP Client │───▶│Hybrid Scorer │───▶│Audit Logger │  │
 │  │   Loader    │    │             │    │              │    │             │  │
 │  └─────────────┘    └──────┬──────┘    └──────────────┘    └─────────────┘  │
 └────────────────────────────┼────────────────────────────────────────────────┘
@@ -188,8 +190,8 @@ Difficulty analysis reports include 1-3 concrete examples of highest judge disag
           │                  │                  │
           ▼                  ▼                  ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        MCP JUDGE SERVER (:8001)                             │
-│                                                                             │
+│                        MCP JUDGE SERVER (:8001)                              │
+│                                                                              │
 │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────┐        │
 │  │  SEMANTIC JUDGE   │  │  NUMERIC JUDGE    │  │CONTRADICTION JUDGE│        │
 │  │  (v1.0.0)         │  │  (v1.1.0)         │  │  (v1.1.0)         │        │
@@ -214,8 +216,8 @@ Difficulty analysis reports include 1-3 concrete examples of highest judge disag
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         PURPLE AGENT (:8003)                                │
-│                                                                             │
+│                         PURPLE AGENT (:8003)                                 │
+│                                                                              │
 │            ┌─────────────┐  ┌─────────────┐  ┌─────────────────┐            │
 │            │  GOLD MODE  │  │  LLM MODE   │  │ ADVERSARIAL MODE│            │
 │            │  (default)  │  │             │  │                 │            │
@@ -230,21 +232,21 @@ Difficulty analysis reports include 1-3 concrete examples of highest judge disag
 
 ```
     ┌────────┐  1. get answer   ┌──────────────┐
-    │  Task  │ ───────────────▶│ Purple Agent │
-    │        │ ◀───────────────│              │
+    │  Task  │ ───────────────▶ │ Purple Agent │
+    │        │ ◀─────────────── │              │
     └────┬───┘   model_answer   └──────────────┘
          │
          │  2. evaluate
          ▼
     ┌────────────────────────────────────────────────────────────┐
-    │                    JUDGE CALLS (sequential)                │
-    │                                                            │
+    │                    JUDGE CALLS (sequential)                 │
+    │                                                             │
     │   ┌──────────┐      ┌──────────┐      ┌──────────────┐     │
-    │   │ Semantic │ ───▶ │ Numeric │ ───▶ │Contradiction │     │
+    │   │ Semantic │ ───▶ │ Numeric  │ ───▶ │Contradiction │     │
     │   │  Judge   │      │  Judge   │      │    Judge     │     │
     │   └────┬─────┘      └────┬─────┘      └──────┬───────┘     │
-    │        │                 │                   │             │
-    │        ▼                 ▼                   ▼             │
+    │        │                 │                   │              │
+    │        ▼                 ▼                   ▼              │
     │   semantic_score    numeric_score      violated (bool)     │
     │   confidence        failure_reason     contradiction_type  │
     └────────────────────────────────────────────────────────────┘
@@ -253,7 +255,7 @@ Difficulty analysis reports include 1-3 concrete examples of highest judge disag
     ┌────────────────────────────────────────────────────────────┐
     │                     HYBRID SCORER                          │
     │                                                            │
-    │   base = avg(semantic × 0.5, numeric × 0.5)                │
+    │   base = avg(semantic × 0.5, numeric × 0.5)               │
     │                                                            │
     │   penalties:                                               │
     │     - consistency_penalty (judge disagreement)             │
@@ -274,8 +276,19 @@ Difficulty analysis reports include 1-3 concrete examples of highest judge disag
     └────────────────────────────────────────────────────────────┘
 ```
 
+### Component Summary
 
-**Components**:
+| Component | Role | Communicates With |
+|-----------|------|-------------------|
+| **Green Agent** | Orchestrator | MCP Server, Purple Agent |
+| **Purple Agent** | Answer generator | Green Agent (A2A protocol) |
+| **MCP Server** | Hosts judge tools | Green Agent (via MCP Client) |
+| **Semantic Judge** | Meaning equivalence | OpenAI API |
+| **Numeric Judge** | Value comparison (1% tolerance) | OpenAI API |
+| **Contradiction Judge** | Logic conflict detection | OpenAI API |
+| **Hybrid Scorer** | Score aggregation + penalties | In-process (Green Agent) |
+
+### Directory Mapping
 
 | Component | Purpose | Location |
 |-----------|---------|----------|
