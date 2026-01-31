@@ -9,8 +9,8 @@
 
 | Difficulty | N | Mean | Std | Min | Max |
 |------------|---|------|-----|-----|-----|
-| Easy | 6 | 0.167 | 0.373 | 0.000 | 1.000 |
-| Medium | 6 | 0.261 | 0.370 | 0.000 | 0.810 |
+| Easy | 6 | 0.220 | 0.368 | 0.000 | 1.000 |
+| Medium | 6 | 0.260 | 0.368 | 0.000 | 0.810 |
 | Hard | 6 | 0.345 | 0.412 | 0.000 | 1.000 |
 
 ## Synthesis
@@ -22,6 +22,7 @@ Score patterns across difficulty levels reflect transformation-specific characte
 ### Easy
 
 - contradiction_violated: 16.7%
+- numeric_error: 16.7%
 
 ### Medium
 
@@ -37,7 +38,7 @@ Score patterns across difficulty levels reflect transformation-specific characte
 
 | Difficulty | Correlation | Mean Diff | High Disagreement Rate |
 |------------|-------------|-----------|------------------------|
-| Easy | 1.000 | 0.000 | 0.0% |
+| Easy | 0.632 | 0.167 | 16.7% |
 | Medium | -0.463 | 0.573 | 66.7% |
 | Hard | 0.581 | 0.250 | 33.3% |
 
@@ -45,7 +46,7 @@ Score patterns across difficulty levels reflect transformation-specific characte
 
 Correlation between expert time (mins) and final score:
 
-- Easy: 0.316
+- Easy: 0.423
 - Medium: -0.316
 - Hard: 0.081
 
@@ -54,6 +55,33 @@ Correlation between expert time (mins) and final score:
 Examples with highest judge disagreement (semantic vs numeric):
 
 ### Example 1
+
+- **Task ID**: 6
+- **Difficulty**: Easy
+- **Question Type**: Numerical Reasoning
+- **Expert Time**: 5.0 mins
+
+**Question**: What is the total value of MSCI's operating leases (in $'s, thousands) that are maturing in the next three years? What percentage?
+
+**Gold Answer**: In thousands:
+
+$85,002 which is 51.3% of leases
+
+**Model Answer**: In thousands:
+
+$85,002,000 which is 51.3% of leases
+
+**Judge Outputs**:
+- Semantic: score=1.000, confidence=0.900
+- Numeric: score=0.000, confidence=0.900
+
+**Consistency Flags**: numeric_error
+**Final Score**: 0.320
+**Judge Disagreement**: 1.000
+
+*Numeric extraction and alignment succeeded but values exceeded tolerance threshold.*
+
+### Example 2
 
 - **Task ID**: 10
 - **Difficulty**: Medium
@@ -86,7 +114,7 @@ Revenue passenger miles (RPMs): ...
 
 *Numeric judge attempted extraction but encountered a parsing error on complex structured output.*
 
-### Example 2
+### Example 3
 
 - **Task ID**: 11
 - **Difficulty**: Hard
@@ -119,31 +147,3 @@ February to March ...
 **Judge Disagreement**: 1.000
 
 *Numeric judge attempted extraction but encountered a parsing error on complex structured output.*
-
-### Example 3
-
-- **Task ID**: 13
-- **Difficulty**: Medium
-- **Question Type**: Adjustments
-- **Expert Time**: 10.0 mins
-
-**Question**: What adjustments does Airbnb (NASDAQ: ABNB) make to its Net Income to Derive Adjusted EBITDA?
-
-**Gold Answer**: Provision for (benefit from) income taxes;
-Other income (expense), net;
-Interest income;
-Depreciation and amortization;
-Stock-based compensation expense;
-Acquisition-related impacts consisting of gain...
-
-**Model Answer**: Regarding benefit, Provision, expense, Other, income, from, taxes, the analysis shows various factors including benefit, Provision, expense, Other, income, from, taxes. Key metrics like Provision and ...
-
-**Judge Outputs**:
-- Semantic: score=0.000, confidence=0.900
-- Numeric: score=1.000, confidence=1.000
-
-**Consistency Flags**: wrong_metric
-**Final Score**: 0.000
-**Judge Disagreement**: 1.000
-
-*Numeric judge passed but semantic judge identified semantic mismatch, suggesting focus on wrong evaluation metric.*

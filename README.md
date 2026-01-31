@@ -1,12 +1,23 @@
-# AgentBusters FinanceBench Phase-1 Evaluator
+# AgentJustice FinanceBench Phase-1 Evaluator
 
-Phase-1 Green Agent evaluation system for FinanceBench-style financial question answering benchmark.
+Phase-1 Green Agent evaluation system designed to **improve and strengthen the existing Finance Agent Benchmark** introduced in *Finance Agent Benchmark* (2025) — https://arxiv.org/pdf/2508.00828
 
 ---
 
 ## Project Overview
 
-This repository implements a **Phase-1 Green Agent** evaluation system for a FinanceBench-style benchmark. The system evaluates agent responses to financial questions using a multi-judge architecture with full audit logging.
+This repository implements **AgentJustice**, a **Phase-1 Green Agent evaluation system** that **extends and improves the original Finance Agent Benchmark** proposed in *Finance Agent Benchmark* (arXiv:2508.00828).
+
+The original benchmark demonstrated the feasibility of evaluating LLM-based financial agents, but left several open challenges unaddressed, including:
+- Limited evaluation transparency
+- Implicit or monolithic LLM-as-judge scoring
+- Lack of fine-grained error attribution
+- Insufficient adversarial robustness analysis
+- Weak guarantees around reproducibility and auditability
+
+**AgentJustice addresses these gaps** by introducing a modular, judge-based evaluation architecture that emphasizes **determinism, auditability, and diagnostic clarity**, while remaining fully compatible with the original FinanceBench task format and public dataset. Although our judges internally use LLMs, they are not LLM-as-judge in the traditional sense. The LLM is used strictly as a subroutine for extraction or semantic alignment, while all scoring logic, thresholds, and failure semantics are explicitly implemented and auditable.
+
+---
 
 **Key Characteristics**:
 - 50-task canonical dataset with difficulty stratification (Easy/Medium/Hard)
@@ -310,7 +321,7 @@ logs/
 ## Repository Structure
 
 ```
-agentbusters_financebench_phase1/
+agentjustice/
 ├── README.md                    # This file
 ├── DEBUGGING_AND_FIX_LOG.md     # Consolidated debugging history
 ├── requirements.txt             # Python dependencies

@@ -15,9 +15,7 @@ venv/
 ENV/
 
 # Generated outputs
-artifacts/
 logs/
-reports/*.md
 
 # Secrets - NEVER commit these
 .env

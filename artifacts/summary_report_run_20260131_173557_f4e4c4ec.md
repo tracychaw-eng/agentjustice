@@ -36,6 +36,6 @@
 
 | Judge | Calls | Avg Latency (ms) | P95 Latency | Errors |
 |-------|-------|------------------|-------------|--------|
-| semantic_equivalence | 50 | 3799 | 9584 | 0 |
-| numeric_tolerance | 50 | 3 | 6 | 0 |
-| contradiction | 50 | 913 | 1440 | 0 |
+| semantic_equivalence | 50 | 2619 | 6240 | 0 |
+| numeric_tolerance | 50 | 3 | 8 | 0 |
+| contradiction | 50 | 1025 | 1665 | 0 |
