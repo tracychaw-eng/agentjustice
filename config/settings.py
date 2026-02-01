@@ -18,6 +18,7 @@ BASE_DIR = Path(__file__).parent.parent
 DATA_DIR = BASE_DIR / "data"
 LOGS_DIR = BASE_DIR / "logs"
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
+RESULTS_DIR = BASE_DIR / "results"  # AgentBeats leaderboard results
 
 # Dataset paths
 DATASET_PATH = DATA_DIR / "public_updated.csv"
@@ -26,6 +27,7 @@ ADVERSARIAL_PATH = DATA_DIR / "public_adversarial.jsonl"
 # Ensure directories exist
 LOGS_DIR.mkdir(exist_ok=True)
 ARTIFACTS_DIR.mkdir(exist_ok=True)
+RESULTS_DIR.mkdir(exist_ok=True)
 
 
 @dataclass
@@ -96,6 +98,11 @@ class ServerConfig:
     purple_agent_host: str = os.getenv("PURPLE_AGENT_HOST", "localhost")
     purple_agent_port: int = int(os.getenv("PURPLE_AGENT_PORT", "8003"))
 
+    # Full URL overrides (for Docker/K8s environments)
+    _mcp_server_url_override: str = field(default_factory=lambda: os.getenv("MCP_SERVER_URL", ""))
+    _green_agent_url_override: str = field(default_factory=lambda: os.getenv("GREEN_AGENT_URL", ""))
+    _purple_agent_url_override: str = field(default_factory=lambda: os.getenv("PURPLE_AGENT_URL", ""))
+
     # MCP judge endpoint paths
     mcp_semantic_path: str = "/judge/semantic_equivalence"
     mcp_numeric_path: str = "/judge/numeric_tolerance"
@@ -105,14 +112,20 @@ class ServerConfig:
 
     @property
     def mcp_server_url(self) -> str:
+        if self._mcp_server_url_override:
+            return self._mcp_server_url_override.rstrip("/")
         return f"http://{self.mcp_server_host}:{self.mcp_server_port}"
 
     @property
     def green_agent_url(self) -> str:
+        if self._green_agent_url_override:
+            return self._green_agent_url_override.rstrip("/")
         return f"http://{self.green_agent_host}:{self.green_agent_port}"
 
     @property
     def purple_agent_url(self) -> str:
+        if self._purple_agent_url_override:
+            return self._purple_agent_url_override.rstrip("/")
         return f"http://{self.purple_agent_host}:{self.purple_agent_port}"
 
     def get_judge_endpoints(self) -> Dict[str, str]:

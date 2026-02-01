@@ -1,0 +1,54 @@
+# AgentJustice Green Agent (Evaluator/Orchestrator)
+# Dockerfile for AgentBeats platform deployment
+#
+# This image bundles both the Green Agent AND the MCP Judge Server.
+# The MCP server runs internally on localhost:8001, Green Agent exposes port 8002.
+#
+# Build: docker build --platform linux/amd64 -f Dockerfile.green-agent -t ghcr.io/yourusername/agentjustice-green:v1.0 .
+# Run:   docker run -p 8002:8002 -e OPENAI_API_KEY=... ghcr.io/yourusername/agentjustice-green:v1.0
+
+FROM python:3.11-slim
+
+# Prevent Python from writing .pyc files and enable unbuffered output
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Make top-level modules importable
+ENV PYTHONPATH=/app
+
+# Install curl for healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd --gid 1000 agentjustice \
+    && useradd --uid 1000 --gid 1000 --create-home agentjustice
+
+WORKDIR /app
+
+# Install dependencies first (better layer caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code (includes MCP server for embedded mode)
+COPY --chown=agentjustice:agentjustice config/ config/
+COPY --chown=agentjustice:agentjustice core/ core/
+COPY --chown=agentjustice:agentjustice green_agent/ green_agent/
+COPY --chown=agentjustice:agentjustice mcp_server/ mcp_server/
+COPY --chown=agentjustice:agentjustice scripts/ scripts/
+COPY --chown=agentjustice:agentjustice data/ data/
+
+# Create output directories (including results for AgentBeats leaderboard)
+RUN mkdir -p /app/artifacts /app/logs /app/reports /app/results \
+    && chown -R agentjustice:agentjustice /app/artifacts /app/logs /app/reports /app/results
+
+# Switch to non-root user
+USER agentjustice
+
+# Expose Green Agent port (MCP server is internal only)
+EXPOSE 8002
+
+# Use startup script that runs both MCP server and Green Agent
+# Accepts --host, --port, --card-url as required by AgentBeats
+ENTRYPOINT ["python", "scripts/start_green_agent.py"]
+CMD ["--host", "0.0.0.0", "--port", "8002"]

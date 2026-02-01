@@ -1,4 +1,61 @@
+# AgentJustice Docker Compose Configuration
+# Runs two A2A agents: Green Agent (with embedded MCP) and Purple Agent
+#
+# Usage:
+#   export OPENAI_API_KEY="your-api-key"
+#   docker compose up --build
+#
+# For AgentBeats platform deployment, build individual images:
+#   docker build --platform linux/amd64 -f Dockerfile.green-agent -t ghcr.io/yourusername/agentjustice-green:v1.0 .
+#   docker build --platform linux/amd64 -f Dockerfile.purple-agent -t ghcr.io/yourusername/agentjustice-purple:v1.0 .
+
 services:
+  # Purple Agent - answer generation (gold/llm/adversarial modes)
+  purple-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.purple-agent
+    ports:
+      - "8003:8003"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - agentjustice
+
+  # Green Agent - orchestrator/evaluator (includes embedded MCP Judge Server)
+  green-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.green-agent
+    ports:
+      - "8002:8002"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
+      # Purple Agent URL for A2A communication
+      - PURPLE_AGENT_URL=http://purple-agent:8003
+    depends_on:
+      purple-agent:
+        condition: service_healthy
+    volumes:
+      # Mount output directories to host for persistence
+      - ./artifacts:/app/artifacts
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      - ./results:/app/results
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - agentjustice
+
+  # Standalone evaluator (for running full evaluation pipelines)
   evaluator:
     build:
       context: .
@@ -7,11 +64,15 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:?OPENAI_API_KEY is required}
     volumes:
-      # Mount output directories to host for persistence
       - ./artifacts:/app/artifacts
       - ./logs:/app/logs
       - ./reports:/app/reports
-      # Mount data directory to ensure datasets are available
       - ./data:/app/data
-    # Default command: run full evaluation (both tracks)
-    command: ["python", "scripts/run_evaluation.py"]
+    profiles:
+      - cli
+    networks:
+      - agentjustice
+
+networks:
+  agentjustice:
+    driver: bridge

@@ -84,6 +84,7 @@ class RunEvaluationRequest(BaseModel):
     """Request to run full evaluation."""
     dataset: str = "canonical"  # "canonical" or "adversarial"
     run_id: Optional[str] = None
+    purple_agent_id: Optional[str] = "purple_agent"  # For AgentBeats leaderboard
 
 
 class RunEvaluationResponse(BaseModel):
@@ -96,13 +97,32 @@ class RunEvaluationResponse(BaseModel):
     logs_dir: str
 
 
+class AgentCapabilities(BaseModel):
+    """A2A Agent Capabilities."""
+    streaming: bool = False
+    pushNotifications: bool = False
+    stateTransitionHistory: bool = False
+
+
+class AgentSkill(BaseModel):
+    """A2A Agent Skill."""
+    id: str
+    name: str
+    description: str
+    tags: List[str] = []
+    examples: List[str] = []
+
+
 class AgentCard(BaseModel):
-    """A2A Agent Card."""
+    """A2A Agent Card (Google A2A Standard)."""
     name: str
     description: str
     version: str
-    capabilities: List[str]
-    endpoints: List[Dict[str, str]]
+    url: str
+    capabilities: AgentCapabilities
+    defaultInputModes: List[str] = ["text"]
+    defaultOutputModes: List[str] = ["text"]
+    skills: List[AgentSkill] = []
 
 
 # ============== Green Agent Implementation ==============
@@ -155,6 +175,7 @@ class GreenAgent:
                         "task_id": task.task_id,
                         "question": task.question,
                         "gold_answer": task.gold_answer,  # For gold mode
+                        "rubric": task.rubric,  # Pass rubric for LLM mode context
                         "difficulty_level": task.difficulty_level,
                         "question_type": task.question_type
                     }
@@ -408,22 +429,177 @@ def get_agent() -> GreenAgent:
 @app.get("/a2a/card", response_model=AgentCard)
 async def get_agent_card():
     """Get A2A agent card."""
+    # Get advertised URL from app state or use default
+    url = getattr(app.state, 'card_url', None) or f"http://localhost:{server_config.green_agent_port}"
+
     return AgentCard(
         name="Green Agent (Evaluator)",
         description="Orchestration agent for AgentBeats Phase-1 evaluation",
         version="1.0.0",
-        capabilities=[
-            "evaluate_task",
-            "run_canonical_evaluation",
-            "run_adversarial_evaluation",
-            "generate_reports"
-        ],
-        endpoints=[
-            {"method": "POST", "path": "/a2a/evaluate", "description": "Evaluate single task"},
-            {"method": "POST", "path": "/a2a/run", "description": "Run full evaluation"},
-            {"method": "GET", "path": "/a2a/status", "description": "Get agent status"}
+        url=url,
+        capabilities=AgentCapabilities(
+            streaming=False,
+            pushNotifications=False,
+            stateTransitionHistory=False
+        ),
+        defaultInputModes=["text"],
+        defaultOutputModes=["text"],
+        skills=[
+            AgentSkill(
+                id="evaluate_task",
+                name="Evaluate Task",
+                description="Evaluate a single financial Q&A task",
+                tags=["evaluation", "finance"],
+                examples=["Evaluate this answer against the gold standard"]
+            ),
+            AgentSkill(
+                id="run_evaluation",
+                name="Run Full Evaluation",
+                description="Run evaluation on canonical or adversarial dataset",
+                tags=["evaluation", "batch"],
+                examples=["Run evaluation on canonical dataset"]
+            )
         ]
     )
+
+
+@app.get("/.well-known/agent-card.json", response_model=AgentCard)
+async def get_wellknown_agent_card():
+    """Get A2A agent card (Google A2A standard discovery endpoint)."""
+    return await get_agent_card()
+
+
+# ============== A2A JSON-RPC Endpoint ==============
+
+class JSONRPCRequest(BaseModel):
+    """JSON-RPC 2.0 Request."""
+    jsonrpc: str = "2.0"
+    method: str
+    params: Optional[Dict[str, Any]] = None
+    id: Optional[str] = None
+
+
+class JSONRPCResponse(BaseModel):
+    """JSON-RPC 2.0 Response."""
+    jsonrpc: str = "2.0"
+    result: Optional[Dict[str, Any]] = None
+    error: Optional[Dict[str, Any]] = None
+    id: Optional[str] = None
+
+
+@app.post("/")
+async def jsonrpc_endpoint(request: JSONRPCRequest):
+    """
+    A2A JSON-RPC endpoint.
+
+    Handles A2A protocol methods like message/send.
+    """
+    try:
+        if request.method == "message/send":
+            # Extract message from params
+            params = request.params or {}
+            message = params.get("message", {})
+            parts = message.get("parts", [])
+
+            # Extract text from message parts
+            text_content = ""
+            for part in parts:
+                if part.get("kind") == "text":
+                    text_content += part.get("text", "")
+
+            # Process the message - run evaluation
+            agent = get_agent()
+            if not agent.run_id:
+                agent.start_run()
+
+            # Default response
+            response_text = f"Evaluation started. Run ID: {agent.run_id}"
+
+            # Get task limit from environment (default to None = all tasks)
+            import os
+            task_limit = int(os.getenv("TASK_LIMIT", "0")) or None
+
+            # Check if requesting canonical, adversarial, or both evaluations
+            if "both" in text_content.lower():
+                # Run both canonical and adversarial evaluations
+                canonical_results = None
+                adversarial_results = None
+
+                if DATASET_PATH.exists():
+                    print(f"[Green Agent] Running canonical evaluation...")
+                    canonical_results = await agent.run_evaluation(DATASET_PATH, is_adversarial=False, limit=task_limit)
+
+                if ADVERSARIAL_PATH.exists():
+                    print(f"[Green Agent] Running adversarial evaluation...")
+                    adversarial_results = await agent.run_evaluation(ADVERSARIAL_PATH, is_adversarial=True, limit=task_limit)
+
+                # Build combined response
+                parts = []
+                total_tasks = 0
+                if canonical_results:
+                    parts.append(f"Canonical: {canonical_results['completed']} tasks, {canonical_results['avg_score']:.2%}")
+                    total_tasks += canonical_results['completed']
+                if adversarial_results:
+                    parts.append(f"Adversarial: {adversarial_results['completed']} tasks, {adversarial_results['avg_score']:.2%}")
+                    total_tasks += adversarial_results['completed']
+
+                response_text = f"Both evaluations complete. {' | '.join(parts)}. Total: {total_tasks} tasks"
+
+            elif "adversarial" in text_content.lower():
+                if ADVERSARIAL_PATH.exists():
+                    results = await agent.run_evaluation(ADVERSARIAL_PATH, is_adversarial=True, limit=task_limit)
+                    response_text = f"Adversarial evaluation complete. Tasks: {results['completed']}, Avg Score: {results['avg_score']:.2%}"
+            elif "canonical" in text_content.lower() or "evaluate" in text_content.lower():
+                if DATASET_PATH.exists():
+                    results = await agent.run_evaluation(DATASET_PATH, is_adversarial=False, limit=task_limit)
+                    response_text = f"Canonical evaluation complete. Tasks: {results['completed']}, Avg Score: {results['avg_score']:.2%}"
+
+            # Write results with purple agent's AgentBeats ID
+            if agent.logger:
+                # Try to read purple agent ID from scenario config
+                purple_agent_id = "purple_agent"  # Default fallback
+                scenario_path = Path("/app/scenario.toml")
+                if scenario_path.exists():
+                    try:
+                        import tomli
+                        with open(scenario_path, "rb") as f:
+                            scenario = tomli.load(f)
+                        participants = scenario.get("participants", [])
+                        print(f"[Green Agent] Found {len(participants)} participants in scenario")
+                        for p in participants:
+                            print(f"[Green Agent] Participant: role={p.get('role')}, id={p.get('agentbeats_id', 'N/A')}")
+                            if p.get("role") == "purple_agent" and "agentbeats_id" in p:
+                                purple_agent_id = p["agentbeats_id"]
+                                print(f"[Green Agent] Using purple agent ID: {purple_agent_id}")
+                                break
+                    except Exception as e:
+                        print(f"[Green Agent] Error reading scenario: {e}")
+                agent.logger.write_agentbeats_results(purple_agent_id)
+
+            # Return A2A response format (Message directly in result)
+            return JSONRPCResponse(
+                jsonrpc="2.0",
+                result={
+                    "messageId": str(uuid.uuid4()),
+                    "role": "agent",
+                    "parts": [{"kind": "text", "text": response_text}]
+                },
+                id=request.id
+            )
+
+        else:
+            return JSONRPCResponse(
+                jsonrpc="2.0",
+                error={"code": -32601, "message": f"Method not found: {request.method}"},
+                id=request.id
+            )
+
+    except Exception as e:
+        return JSONRPCResponse(
+            jsonrpc="2.0",
+            error={"code": -32603, "message": str(e)},
+            id=request.id
+        )
 
 
 @app.get("/a2a/status")
@@ -482,10 +658,10 @@ async def evaluate_task(request: EvaluateTaskRequest):
 async def run_evaluation(request: RunEvaluationRequest):
     """Run full evaluation on dataset via A2A."""
     agent = get_agent()
-    
+
     # Start new run
     run_id = agent.start_run(request.run_id)
-    
+
     # Determine dataset
     if request.dataset == "adversarial":
         dataset_path = ADVERSARIAL_PATH
@@ -493,13 +669,13 @@ async def run_evaluation(request: RunEvaluationRequest):
     else:
         dataset_path = DATASET_PATH
         is_adversarial = False
-    
+
     if not dataset_path.exists():
         raise HTTPException(status_code=404, detail=f"Dataset not found: {dataset_path}")
-    
+
     # Run evaluation
     results = await agent.run_evaluation(dataset_path, is_adversarial)
-    
+
     # Create manifest
     agent.create_manifest(
         dataset_path=dataset_path,
@@ -507,7 +683,12 @@ async def run_evaluation(request: RunEvaluationRequest):
         completed_tasks=results["completed"],
         failed_tasks=results["failed"]
     )
-    
+
+    # Write AgentBeats-compatible results JSON
+    if agent.logger:
+        results_file = agent.logger.write_agentbeats_results(request.purple_agent_id)
+        print(f"[Green Agent] Results written to: {results_file}")
+
     return RunEvaluationResponse(
         run_id=run_id,
         total_tasks=results["total_tasks"],
@@ -526,14 +707,28 @@ async def health():
 
 # ============== Module Interface ==============
 
-def run_server(host: str = None, port: int = None):
+def run_server(host: str = None, port: int = None, card_url: str = None):
     """Run the Green Agent server."""
     host = host or server_config.green_agent_host
     port = port or server_config.green_agent_port
-    
+
+    # Store card_url for agent card endpoint if provided
+    if card_url:
+        app.state.card_url = card_url
+
     print(f"Starting Green Agent on {host}:{port}")
+    if card_url:
+        print(f"Advertised card URL: {card_url}")
     uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
-    run_server()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Green Agent A2A Server")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8002, help="Port to listen on")
+    parser.add_argument("--card-url", dest="card_url", help="Advertised agent URL for A2A card")
+
+    args = parser.parse_args()
+    run_server(host=args.host, port=args.port, card_url=args.card_url)

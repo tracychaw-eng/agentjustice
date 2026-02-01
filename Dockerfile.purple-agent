@@ -1,0 +1,47 @@
+# AgentJustice Purple Agent (Answer Generator)
+# Dockerfile for AgentBeats platform deployment
+#
+# Build: docker build --platform linux/amd64 -f Dockerfile.purple-agent -t ghcr.io/yourusername/agentjustice-purple:v1.0 .
+# Run:   docker run -p 8003:8003 -e OPENAI_API_KEY=... ghcr.io/yourusername/agentjustice-purple:v1.0
+
+FROM python:3.11-slim
+
+# Prevent Python from writing .pyc files and enable unbuffered output
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Make top-level modules importable
+ENV PYTHONPATH=/app
+
+# Install curl for healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user for security
+RUN groupadd --gid 1000 agentjustice \
+    && useradd --uid 1000 --gid 1000 --create-home agentjustice
+
+WORKDIR /app
+
+# Install dependencies first (better layer caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY --chown=agentjustice:agentjustice config/ config/
+COPY --chown=agentjustice:agentjustice core/ core/
+COPY --chown=agentjustice:agentjustice purple_agent/ purple_agent/
+
+# Create output directories (required by config/settings.py at import time)
+RUN mkdir -p /app/artifacts /app/logs /app/reports /app/results \
+    && chown -R agentjustice:agentjustice /app/artifacts /app/logs /app/reports /app/results
+
+# Switch to non-root user
+USER agentjustice
+
+# Expose default port
+EXPOSE 8003
+
+# ENTRYPOINT accepts --host, --port, --card-url as required by AgentBeats
+ENTRYPOINT ["python", "-m", "purple_agent.agent"]
+CMD ["--host", "0.0.0.0", "--port", "8003"]

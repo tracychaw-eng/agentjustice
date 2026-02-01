@@ -22,3 +22,6 @@ websockets>=12.0
 # Hashing and serialization
 xxhash>=3.4.0
 orjson>=3.9.0
+
+# TOML parsing
+tomli>=2.0.0

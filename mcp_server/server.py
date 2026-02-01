@@ -275,14 +275,28 @@ def __init__():
 __all__ = ["app", "MCP_TOOLS"]
 
 
-def run_server(host: str = None, port: int = None):
+def run_server(host: str = None, port: int = None, card_url: str = None):
     """Run the MCP server."""
     host = host or server_config.mcp_server_host
     port = port or server_config.mcp_server_port
-    
+
+    # Store card_url if provided
+    if card_url:
+        app.state.card_url = card_url
+
     print(f"Starting MCP Judge Server on {host}:{port}")
+    if card_url:
+        print(f"Advertised URL: {card_url}")
     uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
-    run_server()
+    import argparse
+
+    parser = argparse.ArgumentParser(description="MCP Judge Server")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8001, help="Port to listen on")
+    parser.add_argument("--card-url", dest="card_url", help="Advertised server URL")
+
+    args = parser.parse_args()
+    run_server(host=args.host, port=args.port, card_url=args.card_url)

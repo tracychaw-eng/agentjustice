@@ -12,7 +12,7 @@ import threading
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import LOGS_DIR, ARTIFACTS_DIR
+from config import LOGS_DIR, ARTIFACTS_DIR, RESULTS_DIR
 from core.types import TaskTrace, RunManifest
 
 
@@ -124,6 +124,85 @@ class AuditLogger:
                 data = json.load(f)
             return data
         return None
+
+    def write_agentbeats_results(self, purple_agent_id: str = "purple_agent") -> Path:
+        """
+        Write results in AgentBeats leaderboard-compatible JSON format.
+
+        Args:
+            purple_agent_id: The purple agent identifier for the leaderboard
+
+        Returns:
+            Path to the written results file
+        """
+        results_dir = RESULTS_DIR
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        # Read all traces
+        canonical_traces = self._read_traces(self.canonical_traces_path)
+        adversarial_traces = self._read_traces(self.adversarial_traces_path)
+
+        # Build results array
+        results = []
+
+        for trace in canonical_traces:
+            hybrid = trace.get("hybrid_score", {})
+            results.append({
+                "task_id": trace.get("task_id"),
+                "source": "canonical",
+                "final_score": hybrid.get("final_score", 0.0),
+                "semantic_score": hybrid.get("semantic_score", 0.0),
+                "numeric_score": hybrid.get("numeric_score", 0.0),
+                "contradiction_violated": hybrid.get("contradiction_violated", False),
+                "difficulty_level": trace.get("difficulty_level", "Unknown"),
+                "question_type": trace.get("question_type", "Unknown")
+            })
+
+        for trace in adversarial_traces:
+            hybrid = trace.get("hybrid_score", {})
+            results.append({
+                "task_id": trace.get("task_id"),
+                "source": "adversarial",
+                "final_score": hybrid.get("final_score", 0.0),
+                "semantic_score": hybrid.get("semantic_score", 0.0),
+                "numeric_score": hybrid.get("numeric_score", 0.0),
+                "contradiction_violated": hybrid.get("contradiction_violated", False),
+                "difficulty_level": trace.get("difficulty_level", "Adversarial"),
+                "question_type": trace.get("question_type", trace.get("transformation_type", "Unknown")),
+                "transformation_type": trace.get("transformation_type"),
+                "expected_outcome": trace.get("expected_outcome")
+            })
+
+        # Build AgentBeats-compatible structure
+        agentbeats_result = {
+            "participants": {
+                "agent": purple_agent_id
+            },
+            "run_id": self.run_id,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "results": results,
+            "summary": {
+                "canonical_count": len(canonical_traces),
+                "adversarial_count": len(adversarial_traces),
+                "total_count": len(results)
+            }
+        }
+
+        # Write to results directory
+        results_file = results_dir / f"{self.run_id}.json"
+        with open(results_file, "w", encoding="utf-8") as f:
+            json.dump(agentbeats_result, f, indent=2)
+
+        # Also write to /app/output/detailed_results.json for AgentBeats submission
+        # Note: We use detailed_results.json because agentbeats-client creates its own results.json
+        output_dir = Path("/app/output")
+        if output_dir.exists():
+            output_file = output_dir / "detailed_results.json"
+            with open(output_file, "w", encoding="utf-8") as f:
+                json.dump(agentbeats_result, f, indent=2)
+            print(f"[Green Agent] Detailed results written to: {output_file}")
+
+        return results_file
 
 
 class LoggerManager:

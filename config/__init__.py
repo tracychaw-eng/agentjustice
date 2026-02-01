@@ -15,6 +15,7 @@ from .settings import (
     ADVERSARIAL_PATH,
     LOGS_DIR,
     ARTIFACTS_DIR,
+    RESULTS_DIR,
     get_config_summary,
 )
 
@@ -34,5 +35,6 @@ __all__ = [
     "ADVERSARIAL_PATH",
     "LOGS_DIR",
     "ARTIFACTS_DIR",
+    "RESULTS_DIR",
     "get_config_summary",
 ]
